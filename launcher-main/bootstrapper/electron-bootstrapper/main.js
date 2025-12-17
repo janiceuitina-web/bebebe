@@ -29,7 +29,14 @@ const CONFIG = {
   
   // Local paths
   appFolder: 'RobBob',
-  appExecutable: 'RobBob-Portable.exe',  // FIXED: Match the actual executable name
+  // Possible launcher executable names (will try all)
+  possibleExecutables: [
+    'RobBob Launcher.exe',
+    'RobBob-Portable.exe',
+    'RobBob-Launcher.exe',
+    'RobBob.exe',
+    'launcher.exe'
+  ],
   versionFile: 'version.txt'
 };
 
@@ -47,6 +54,40 @@ let hasStartedInstall = false;
 function getDefaultInstallPath() {
   const appData = process.env.LOCALAPPDATA || path.join(os.homedir(), 'AppData', 'Local');
   return path.join(appData, CONFIG.appFolder);
+}
+
+/**
+ * Find launcher executable in installation directory
+ * Tries multiple possible names and returns the first one found
+ */
+function findLauncherExecutable(targetPath) {
+  console.log('Searching for launcher executable in:', targetPath);
+  
+  // Try all possible executable names
+  for (const exeName of CONFIG.possibleExecutables) {
+    const fullPath = path.join(targetPath, exeName);
+    if (fs.existsSync(fullPath)) {
+      console.log('Found launcher executable:', exeName);
+      return fullPath;
+    }
+  }
+  
+  // If none of the known names found, search for any .exe file
+  try {
+    const files = fs.readdirSync(targetPath);
+    const exeFiles = files.filter(f => f.toLowerCase().endsWith('.exe'));
+    
+    if (exeFiles.length > 0) {
+      const foundExe = path.join(targetPath, exeFiles[0]);
+      console.log('Found alternative executable:', exeFiles[0]);
+      return foundExe;
+    }
+  } catch (e) {
+    console.error('Error searching for executables:', e);
+  }
+  
+  console.error('No launcher executable found in:', targetPath);
+  return null;
 }
 
 /**
@@ -187,19 +228,32 @@ function extractZip(zipPath, destPath) {
 /**
  * Create desktop shortcut to MAIN LAUNCHER (not bootstrapper)
  */
-function createDesktopShortcut(launcherPath) {
+function createDesktopShortcut(targetPath) {
   return new Promise((resolve) => {
+    const launcherPath = findLauncherExecutable(targetPath);
+    
+    if (!launcherPath) {
+      console.error('Cannot create shortcut: launcher executable not found');
+      resolve();
+      return;
+    }
+    
     const desktopPath = path.join(os.homedir(), 'Desktop');
     const shortcutPath = path.join(desktopPath, 'RobBob Launcher.lnk');
     const launcherDir = path.dirname(launcherPath);
     
-    // PowerShell script to create shortcut
+    // Try to find icon file
+    const iconPath = path.join(targetPath, 'assets', 'icon.ico') ||
+                     path.join(targetPath, 'icon.ico');
+    
+    // PowerShell script to create shortcut with icon
     const psScript = `
       $WshShell = New-Object -ComObject WScript.Shell;
       $Shortcut = $WshShell.CreateShortcut('${shortcutPath}');
       $Shortcut.TargetPath = '${launcherPath}';
       $Shortcut.WorkingDirectory = '${launcherDir}';
       $Shortcut.Description = 'RobBob Launcher';
+      ${fs.existsSync(iconPath) ? `$Shortcut.IconLocation = '${iconPath}';` : ''}
       $Shortcut.Save()
     `.replace(/\n/g, ' ').trim();
     
@@ -207,7 +261,7 @@ function createDesktopShortcut(launcherPath) {
       if (err) {
         console.error('Failed to create shortcut:', err);
       } else {
-        console.log('Desktop shortcut created successfully');
+        console.log('Desktop shortcut created successfully at:', shortcutPath);
       }
       // Don't fail the whole process if shortcut creation fails
       resolve();
@@ -218,12 +272,22 @@ function createDesktopShortcut(launcherPath) {
 /**
  * Launch the main launcher with admin rights prompt
  */
-function launchMainLauncher(launcherPath) {
-  if (!fs.existsSync(launcherPath)) {
-    sendStatus('error', 'Файл лаунчера не найден');
+function launchMainLauncher(targetPath) {
+  const launcherPath = findLauncherExecutable(targetPath);
+  
+  if (!launcherPath) {
+    sendStatus('error', 'Файл лаунчера не найден. Проверьте установку.');
+    console.error('Launcher executable not found in:', targetPath);
     return;
   }
   
+  if (!fs.existsSync(launcherPath)) {
+    sendStatus('error', 'Файл лаунчера не найден');
+    console.error('Launcher file does not exist:', launcherPath);
+    return;
+  }
+  
+  console.log('Launching main launcher:', launcherPath);
   sendStatus('status', 'Запуск лаунчера...');
   
   // Use PowerShell Start-Process with -Verb RunAs to trigger UAC prompt
@@ -247,10 +311,10 @@ function launchMainLauncher(launcherPath) {
  * Check if launcher is already installed
  */
 function checkExistingInstallation(targetPath) {
-  const launcherPath = path.join(targetPath, CONFIG.appExecutable);
+  const launcherPath = findLauncherExecutable(targetPath);
   const versionPath = path.join(targetPath, CONFIG.versionFile);
   
-  const exists = fs.existsSync(launcherPath);
+  const exists = launcherPath !== null;
   let version = null;
   
   if (exists && fs.existsSync(versionPath)) {
@@ -259,7 +323,7 @@ function checkExistingInstallation(targetPath) {
     } catch (e) {}
   }
   
-  return { exists, version };
+  return { exists, version, launcherPath };
 }
 
 /**
@@ -345,8 +409,8 @@ async function performInstallation() {
     if (existing.exists && existing.version === serverVersion) {
       // Already installed and up to date - just launch
       sendStatus('status', 'Лаунчер уже установлен', { progress: 100 });
-      await createDesktopShortcut(path.join(installPath, CONFIG.appExecutable));
-      launchMainLauncher(path.join(installPath, CONFIG.appExecutable));
+      await createDesktopShortcut(installPath);
+      launchMainLauncher(installPath);
       return;
     }
     
@@ -378,11 +442,15 @@ async function performInstallation() {
     const launcherPath = path.join(installPath, CONFIG.appExecutable);
     await createDesktopShortcut(launcherPath);
     
+    sendStatus('status', 'Создание ярлыка...', { progress: 95 });
+    
+    await createDesktopShortcut(installPath);
+    
     sendStatus('status', 'Готово!', { progress: 100 });
     
     // Step 7: Launch main launcher with admin prompt
     setTimeout(() => {
-      launchMainLauncher(launcherPath);
+      launchMainLauncher(installPath);
     }, 500);
     
   } catch (error) {

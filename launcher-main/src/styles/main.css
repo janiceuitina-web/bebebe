@@ -1966,8 +1966,14 @@ select:focus, input[type="text"]:focus {
   position: absolute;
   inset: 0;
   background: rgba(0, 0, 0, 0.35);
-  backdrop-filter: blur(2px);
-  -webkit-backdrop-filter: blur(2px);
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+}
+
+/* Apply blur to all content when tutorial is active */
+.tutorial-overlay.active ~ * {
+  filter: blur(4px);
+  transition: filter 0.3s ease;
 }
 
 .tutorial-spotlight {
@@ -1985,9 +1991,16 @@ select:focus, input[type="text"]:focus {
 }
 
 /* Target element highlight - will be set via JS */
+/* Remove blur from the highlighted element */
 .tutorial-target-highlight {
   position: relative;
   z-index: 15002 !important;
+  filter: none !important;
+}
+
+/* Ensure tutorial overlay elements are not blurred */
+.tutorial-overlay,
+.tutorial-overlay * {
   filter: none !important;
 }
 

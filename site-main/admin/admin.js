@@ -482,35 +482,31 @@ function saveGames() {
     localStorage.setItem(STORAGE_KEYS.GAMES, JSON.stringify(currentGames));
 }
 
-// Fetch game details from Roblox API
+// Fetch game details from Roblox PUBLIC API
 async function fetchGameDetails(placeId) {
     try {
-        // First, get the Universe ID from Place ID
-        const universeResponse = await fetch(`https://apis.roblox.com/universes/v1/places/${placeId}/universe`);
+        // Use PUBLIC API: games.roblox.com - no CORS issues
+        const gameResponse = await fetch(
+            `https://games.roblox.com/v1/games/multiget-place-details?placeIds=${placeId}`
+        );
         
-        if (!universeResponse.ok) {
-            throw new Error('Failed to fetch universe ID');
-        }
-        
-        const universeData = await universeResponse.json();
-        const universeId = universeData.universeId;
-        
-        // Then, fetch the game details
-        const detailsResponse = await fetch(`https://games.roblox.com/v1/games?universeIds=${universeId}`);
-        
-        if (!detailsResponse.ok) {
+        if (!gameResponse.ok) {
             throw new Error('Failed to fetch game details');
         }
         
-        const detailsData = await detailsResponse.json();
-        const gameInfo = detailsData.data && detailsData.data[0];
+        const gameData = await gameResponse.json();
+        const game = gameData[0];
         
-        if (!gameInfo) {
+        if (!game) {
             throw new Error('Game not found');
         }
         
-        // Fetch thumbnail
-        const thumbnailResponse = await fetch(`https://thumbnails.roblox.com/v1/games/icons?universeIds=${universeId}&size=512x512&format=Png&isCircular=false`);
+        const universeId = game.universeId;
+        
+        // Fetch thumbnail using place ID (public API)
+        const thumbnailResponse = await fetch(
+            `https://thumbnails.roblox.com/v1/places/gameicons?placeIds=${placeId}&returnPolicy=PlaceHolder&size=512x512&format=Png&isCircular=false`
+        );
         
         let thumbnailUrl = null;
         if (thumbnailResponse.ok) {
@@ -519,7 +515,7 @@ async function fetchGameDetails(placeId) {
         }
         
         return {
-            name: gameInfo.name,
+            name: game.name,
             universeId: universeId,
             thumbnailUrl: thumbnailUrl
         };

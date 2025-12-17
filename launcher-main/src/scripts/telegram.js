@@ -41,14 +41,8 @@ const TelegramUI = {
       // Показываем fullscreen blocker при старте, если не верифицирован
       if (!this.isVerified) {
         this.showBlocker();
-      } else {
-        // Если уже верифицирован, запускаем tutorial (если не пройден)
-        setTimeout(() => {
-          if (typeof Tutorial !== 'undefined') {
-            Tutorial.start();
-          }
-        }, 1000);
       }
+      // Tutorial запустится автоматически только после успешной верификации
     }
   },
 
