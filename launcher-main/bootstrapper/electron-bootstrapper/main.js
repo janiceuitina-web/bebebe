@@ -465,11 +465,6 @@ async function performInstallation() {
     // Step 6: Create desktop shortcut
     sendStatus('status', 'Создание ярлыка...', { progress: 95 });
     
-    const launcherPath = path.join(installPath, CONFIG.appExecutable);
-    await createDesktopShortcut(launcherPath);
-    
-    sendStatus('status', 'Создание ярлыка...', { progress: 95 });
-    
     await createDesktopShortcut(installPath);
     
     sendStatus('status', 'Готово!', { progress: 100 });
