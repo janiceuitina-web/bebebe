@@ -467,6 +467,17 @@ function extractPlaceId(url) {
     return match ? match[1] : null;
 }
 
+// Extract game name from Roblox URL
+function extractGameNameFromUrl(url) {
+    // Handles: https://www.roblox.com/games/123456789/Game-Name
+    const match = url.match(/roblox\.com\/games\/\d+\/([^?#/]+)/);
+    if (match) {
+        // Decode URI component and replace hyphens with spaces
+        return decodeURIComponent(match[1]).replace(/-/g, ' ');
+    }
+    return null;
+}
+
 // Load games from localStorage
 function loadGames() {
     const stored = localStorage.getItem(STORAGE_KEYS.GAMES);
@@ -482,46 +493,28 @@ function saveGames() {
     localStorage.setItem(STORAGE_KEYS.GAMES, JSON.stringify(currentGames));
 }
 
-// Fetch game details from Roblox PUBLIC API with CORS proxy
-async function fetchGameDetails(placeId) {
+// Generate thumbnail URL from placeId (direct Roblox CDN link)
+function getGameThumbnailUrl(placeId) {
+    // Direct link to Roblox thumbnail - works without CORS
+    return `https://thumbnails.roblox.com/v1/places/gameicons?placeIds=${placeId}&returnPolicy=PlaceHolder&size=512x512&format=Png&isCircular=false`;
+}
+
+// Fetch game details - simplified to work without CORS
+async function fetchGameDetails(placeId, gameUrl) {
     try {
-        // Use CORS proxy to avoid CORS issues
-        const corsProxy = 'https://api.allorigins.win/raw?url=';
+        // Extract game name from URL slug
+        const gameName = extractGameNameFromUrl(gameUrl);
         
-        // Fetch game details
-        const gameUrl = encodeURIComponent(`https://games.roblox.com/v1/games/multiget-place-details?placeIds=${placeId}`);
-        const gameResponse = await fetch(`${corsProxy}${gameUrl}`);
-        
-        if (!gameResponse.ok) {
-            throw new Error('Failed to fetch game details');
-        }
-        
-        const gameData = await gameResponse.json();
-        const game = gameData[0];
-        
-        if (!game) {
-            throw new Error('Game not found');
-        }
-        
-        const universeId = game.universeId;
-        
-        // Fetch thumbnail using place ID with CORS proxy
-        const thumbnailUrl = encodeURIComponent(`https://thumbnails.roblox.com/v1/places/gameicons?placeIds=${placeId}&returnPolicy=PlaceHolder&size=512x512&format=Png&isCircular=false`);
-        const thumbnailResponse = await fetch(`${corsProxy}${thumbnailUrl}`);
-        
-        let thumbnailImageUrl = null;
-        if (thumbnailResponse.ok) {
-            const thumbnailData = await thumbnailResponse.json();
-            thumbnailImageUrl = thumbnailData.data && thumbnailData.data[0] && thumbnailData.data[0].imageUrl;
-        }
+        // Generate thumbnail URL
+        const thumbnailUrl = getGameThumbnailUrl(placeId);
         
         return {
-            name: game.name,
-            universeId: universeId,
-            thumbnailUrl: thumbnailImageUrl
+            name: gameName || `Roblox Game ${placeId}`,
+            thumbnailUrl: thumbnailUrl,
+            placeId: placeId
         };
     } catch (error) {
-        console.error('Error fetching game details:', error);
+        console.error('Error processing game details:', error);
         return null;
     }
 }
@@ -546,7 +539,7 @@ async function handleAddGame() {
     const placeId = extractPlaceId(url);
     
     if (!placeId) {
-        gameError.textContent = 'Неверный формат URL. Используйте ссылку вида: https://www.roblox.com/games/123456789/...';
+        gameError.textContent = 'Неверный формат URL. Используйте ссылку вида: https://www.roblox.com/games/123456789/Game-Name';
         gameError.classList.add('show');
         return;
     }
@@ -558,29 +551,21 @@ async function handleAddGame() {
         return;
     }
     
-    // Disable button and show loading
-    const addBtn = document.getElementById('addGameBtn');
-    addBtn.disabled = true;
-    addBtn.textContent = 'Загрузка...';
-    
-    // Fetch game details
-    const gameDetails = await fetchGameDetails(placeId);
+    // Get game details from URL (no API calls - no CORS issues)
+    const gameDetails = fetchGameDetails(placeId, url);
     
     if (!gameDetails) {
-        gameError.textContent = 'Не удалось загрузить информацию об игре. Проверьте URL и попробуйте снова.';
+        gameError.textContent = 'Не удалось обработать URL игры. Проверьте формат.';
         gameError.classList.add('show');
-        addBtn.disabled = false;
-        addBtn.innerHTML = '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>Добавить';
         return;
     }
     
-    // Add game to list with admin comment
+    // Add game to list
     const newGame = {
         id: Date.now(),
         placeId: placeId,
         url: url,
         name: gameDetails.name,
-        universeId: gameDetails.universeId,
         thumbnailUrl: gameDetails.thumbnailUrl,
         description: description,
         adminName: 'Админ',
@@ -594,8 +579,6 @@ async function handleAddGame() {
     // Reset form
     urlInput.value = '';
     descInput.value = '';
-    addBtn.disabled = false;
-    addBtn.innerHTML = '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>Добавить';
     
     showToast('Игра добавлена', 'success');
 }
@@ -621,18 +604,18 @@ function renderGamesAdmin() {
     }
     
     gamesGridAdmin.innerHTML = currentGames.map(game => `
-        <div class="game-card-admin glass-panel">
+        <div class="game-card-admin glass-panel" onclick="window.open('${game.url}', '_blank')" style="cursor: pointer;">
             <div class="game-thumbnail">
                 ${game.thumbnailUrl
-                    ? `<img src="${game.thumbnailUrl}" alt="${game.name}" loading="lazy">`
+                    ? `<img src="${game.thumbnailUrl}" alt="${game.name}" loading="lazy" onerror="this.parentElement.innerHTML='<span>Нет изображения</span>'">`
                     : '<span>Нет изображения</span>'}
             </div>
             <div class="game-card-info">
                 <div class="game-card-title" title="${game.name}">${game.name}</div>
-                <div class="game-card-id">ID: ${game.placeId}</div>
+                <div class="game-card-id">Place ID: ${game.placeId}</div>
                 ${game.description ? `<div class="game-card-desc">${game.description}</div>` : ''}
             </div>
-            <div class="game-card-actions">
+            <div class="game-card-actions" onclick="event.stopPropagation()">
                 <button class="btn ghost btn-small" onclick="window.open('${game.url}', '_blank')">
                     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                         <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path>
