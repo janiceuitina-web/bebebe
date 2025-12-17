@@ -467,12 +467,11 @@ async function performInstallation() {
     
     await createDesktopShortcut(installPath);
     
-    sendStatus('status', 'Готово!', { progress: 100 });
-    
-    // Step 7: Launch main launcher with admin prompt
-    setTimeout(() => {
-      launchMainLauncher(installPath);
-    }, 500);
+    // Step 7: Show completion message instead of auto-launching
+    sendStatus('complete', 'Установка завершена!', {
+      progress: 100,
+      message: 'RobBob Launcher успешно установлен!\n\nВы можете запустить его с ярлыка на рабочем столе "RobBob Launcher"'
+    });
     
   } catch (error) {
     console.error('Installation error:', error);

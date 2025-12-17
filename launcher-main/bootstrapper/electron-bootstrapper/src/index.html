@@ -361,8 +361,9 @@
       <!-- Success screen -->
       <div class="screen" id="successScreen">
         <div class="success-icon">✓</div>
-        <div class="success-message">Установка завершена!</div>
-        <div class="success-submessage">Лаунчер запускается...</div>
+        <div class="success-message" id="successMessage">Установка завершена!</div>
+        <div class="success-submessage" id="successSubmessage">Вы можете запустить лаунчер с ярлыка на рабочем столе "RobBob Launcher"</div>
+        <button class="btn btn-primary" id="closeAfterSuccessBtn" style="margin-top: 20px;">Закрыть</button>
       </div>
     </div>
 
@@ -435,6 +436,22 @@
         if (data.progress !== undefined) {
           updateProgress(data.progress, data.message);
         }
+      } else if (data.type === 'complete') {
+        showScreen('success');
+        const successMessage = document.getElementById('successMessage');
+        const successSubmessage = document.getElementById('successSubmessage');
+        if (successMessage) successMessage.textContent = data.message || 'Установка завершена!';
+        if (successSubmessage && data.message) {
+          // Extract submessage from the full message
+          const lines = data.message.split('\n');
+          if (lines.length > 1) {
+            successMessage.textContent = lines[0];
+            successSubmessage.textContent = lines.slice(1).join('\n');
+          }
+        }
+        if (data.progress !== undefined) {
+          updateProgress(data.progress);
+        }
       } else if (data.type === 'error') {
         showScreen('error');
         errorMessage.textContent = data.message;
@@ -468,6 +485,14 @@
     closeBtn.addEventListener('click', () => {
       window.bootstrapper.close();
     });
+    
+    // Close after successful installation
+    const closeAfterSuccessBtn = document.getElementById('closeAfterSuccessBtn');
+    if (closeAfterSuccessBtn) {
+      closeAfterSuccessBtn.addEventListener('click', () => {
+        window.bootstrapper.close();
+      });
+    }
   </script>
 </body>
 </html>
