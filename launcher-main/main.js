@@ -85,18 +85,14 @@ function restartAsAdmin() {
 const isElevatedLaunch = process.argv.includes('--elevated');
 
 if (process.platform === 'win32' && !isElevatedLaunch && !process.argv.includes('--no-admin-check')) {
-  // Проверка через создание тестового файла в системной папке
-  const testPath = path.join(process.env.SystemRoot || 'C:\\Windows', 'temp', 'admin_test_' + process.pid);
-
-  try {
-    fs.writeFileSync(testPath, 'test');
-    fs.unlinkSync(testPath);
+  // Проверка прав администратора
+  if (!isAdmin()) {
+    // Нет прав администратора - показываем UAC prompt и перезапускаем
+    console.log('Requesting administrator privileges via UAC...');
+    restartAsAdmin();
+  } else {
     // Права есть, продолжаем
     console.log('Running with administrator privileges');
-  } catch (e) {
-    // Нет прав администратора - перезапускаем
-    console.log('Requesting administrator privileges...');
-    restartAsAdmin();
   }
 } else if (isElevatedLaunch) {
   console.log('Launched with --elevated flag, skipping admin check');

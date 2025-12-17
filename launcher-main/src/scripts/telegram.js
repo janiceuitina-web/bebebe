@@ -195,10 +195,18 @@ const TelegramUI = {
           this.elements.codeInput.value = '';
         }
         
-        // Запускаем tutorial после успешной верификации
-        setTimeout(() => {
-          if (typeof Tutorial !== 'undefined') {
-            Tutorial.start();
+        // Запускаем tutorial после успешной верификации ТОЛЬКО если он еще не был завершен
+        setTimeout(async () => {
+          if (typeof Tutorial !== 'undefined' && window.electronAPI) {
+            try {
+              const settings = await window.electronAPI.getSettings();
+              if (!settings.tutorialCompleted) {
+                console.log('Starting tutorial after Telegram verification');
+                Tutorial.start();
+              }
+            } catch (e) {
+              console.log('Tutorial check error:', e);
+            }
           }
         }, 500);
       } else {

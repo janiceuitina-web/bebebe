@@ -72,21 +72,44 @@ function findLauncherExecutable(targetPath) {
   // Try all possible executable names
   for (const exeName of CONFIG.possibleExecutables) {
     const fullPath = path.join(targetPath, exeName);
+    console.log('Checking:', fullPath);
     if (fs.existsSync(fullPath)) {
       console.log('Found launcher executable:', exeName);
       return fullPath;
     }
   }
   
-  // If none of the known names found, search for any .exe file
+  // If none of the known names found, recursively search for any .exe file (not Uninstall.exe)
   try {
     const files = fs.readdirSync(targetPath);
-    const exeFiles = files.filter(f => f.toLowerCase().endsWith('.exe'));
+    console.log('Files in directory:', files);
+    
+    // First, look for .exe files in the root
+    const exeFiles = files.filter(f =>
+      f.toLowerCase().endsWith('.exe') &&
+      !f.toLowerCase().includes('uninstall')
+    );
     
     if (exeFiles.length > 0) {
       const foundExe = path.join(targetPath, exeFiles[0]);
       console.log('Found alternative executable:', exeFiles[0]);
       return foundExe;
+    }
+    
+    // Then search subdirectories (sometimes ZIP extracts into a subfolder)
+    for (const file of files) {
+      const fullPath = path.join(targetPath, file);
+      try {
+        if (fs.statSync(fullPath).isDirectory()) {
+          const subResult = findLauncherExecutable(fullPath);
+          if (subResult) {
+            console.log('Found executable in subdirectory:', subResult);
+            return subResult;
+          }
+        }
+      } catch (e) {
+        // Skip inaccessible directories
+      }
     }
   } catch (e) {
     console.error('Error searching for executables:', e);
@@ -102,7 +125,7 @@ function findLauncherExecutable(targetPath) {
 function createWindow() {
   mainWindow = new BrowserWindow({
     width: 500,
-    height: 400,
+    height: 450,
     frame: false,
     transparent: true,
     resizable: false,
@@ -255,18 +278,33 @@ function createDesktopShortcut(targetPath) {
     const shortcutPath = path.join(desktopPath, 'RobBob Launcher.lnk');
     const launcherDir = path.dirname(launcherPath);
     
-    // Try to find icon file
-    const iconPath = path.join(targetPath, 'assets', 'icon.ico') ||
-                     path.join(targetPath, 'icon.ico');
+    // Try to find icon file - check multiple possible locations
+    let iconPath = null;
+    const possibleIconPaths = [
+      path.join(targetPath, 'assets', 'icon.ico'),
+      path.join(targetPath, 'icon.ico'),
+      path.join(launcherDir, 'assets', 'icon.ico'),
+      path.join(launcherDir, 'icon.ico'),
+      launcherPath // Use the .exe itself as icon fallback
+    ];
+    
+    for (const testPath of possibleIconPaths) {
+      if (fs.existsSync(testPath)) {
+        iconPath = testPath;
+        console.log('Found icon at:', iconPath);
+        break;
+      }
+    }
     
     // PowerShell script to create shortcut with icon
+    const iconLine = iconPath ? `$Shortcut.IconLocation = '${iconPath}';` : '';
     const psScript = `
       $WshShell = New-Object -ComObject WScript.Shell;
       $Shortcut = $WshShell.CreateShortcut('${shortcutPath}');
       $Shortcut.TargetPath = '${launcherPath}';
       $Shortcut.WorkingDirectory = '${launcherDir}';
       $Shortcut.Description = 'RobBob Launcher';
-      ${fs.existsSync(iconPath) ? `$Shortcut.IconLocation = '${iconPath}';` : ''}
+      ${iconLine}
       $Shortcut.Save()
     `.replace(/\n/g, ' ').trim();
     

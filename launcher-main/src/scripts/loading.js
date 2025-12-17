@@ -252,20 +252,8 @@ const Loading = {
       }, 500);
     }
 
-    // Start tutorial ONLY if not completed yet
-    // Wait a bit for the UI to fully render
-    setTimeout(async () => {
-      if (window.electronAPI) {
-        try {
-          const settings = await window.electronAPI.getSettings();
-          if (!settings.tutorialCompleted && typeof Tutorial !== 'undefined') {
-            Tutorial.start();
-          }
-        } catch (e) {
-          console.log('Tutorial check error:', e);
-        }
-      }
-    }, 600);
+    // DO NOT start tutorial here - it will be started by TelegramUI after successful verification
+    // Tutorial will only start after Telegram verification is complete
   },
 
   delay(ms) {

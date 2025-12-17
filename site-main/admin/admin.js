@@ -482,13 +482,15 @@ function saveGames() {
     localStorage.setItem(STORAGE_KEYS.GAMES, JSON.stringify(currentGames));
 }
 
-// Fetch game details from Roblox PUBLIC API
+// Fetch game details from Roblox PUBLIC API with CORS proxy
 async function fetchGameDetails(placeId) {
     try {
-        // Use PUBLIC API: games.roblox.com - no CORS issues
-        const gameResponse = await fetch(
-            `https://games.roblox.com/v1/games/multiget-place-details?placeIds=${placeId}`
-        );
+        // Use CORS proxy to avoid CORS issues
+        const corsProxy = 'https://api.allorigins.win/raw?url=';
+        
+        // Fetch game details
+        const gameUrl = encodeURIComponent(`https://games.roblox.com/v1/games/multiget-place-details?placeIds=${placeId}`);
+        const gameResponse = await fetch(`${corsProxy}${gameUrl}`);
         
         if (!gameResponse.ok) {
             throw new Error('Failed to fetch game details');
@@ -503,21 +505,20 @@ async function fetchGameDetails(placeId) {
         
         const universeId = game.universeId;
         
-        // Fetch thumbnail using place ID (public API)
-        const thumbnailResponse = await fetch(
-            `https://thumbnails.roblox.com/v1/places/gameicons?placeIds=${placeId}&returnPolicy=PlaceHolder&size=512x512&format=Png&isCircular=false`
-        );
+        // Fetch thumbnail using place ID with CORS proxy
+        const thumbnailUrl = encodeURIComponent(`https://thumbnails.roblox.com/v1/places/gameicons?placeIds=${placeId}&returnPolicy=PlaceHolder&size=512x512&format=Png&isCircular=false`);
+        const thumbnailResponse = await fetch(`${corsProxy}${thumbnailUrl}`);
         
-        let thumbnailUrl = null;
+        let thumbnailImageUrl = null;
         if (thumbnailResponse.ok) {
             const thumbnailData = await thumbnailResponse.json();
-            thumbnailUrl = thumbnailData.data && thumbnailData.data[0] && thumbnailData.data[0].imageUrl;
+            thumbnailImageUrl = thumbnailData.data && thumbnailData.data[0] && thumbnailData.data[0].imageUrl;
         }
         
         return {
             name: game.name,
             universeId: universeId,
-            thumbnailUrl: thumbnailUrl
+            thumbnailUrl: thumbnailImageUrl
         };
     } catch (error) {
         console.error('Error fetching game details:', error);
