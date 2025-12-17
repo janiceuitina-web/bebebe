@@ -63,6 +63,12 @@ function getDefaultInstallPath() {
 function findLauncherExecutable(targetPath) {
   console.log('Searching for launcher executable in:', targetPath);
   
+  // Check if directory exists first
+  if (!fs.existsSync(targetPath)) {
+    console.log('Installation directory does not exist yet:', targetPath);
+    return null;
+  }
+  
   // Try all possible executable names
   for (const exeName of CONFIG.possibleExecutables) {
     const fullPath = path.join(targetPath, exeName);
@@ -86,7 +92,7 @@ function findLauncherExecutable(targetPath) {
     console.error('Error searching for executables:', e);
   }
   
-  console.error('No launcher executable found in:', targetPath);
+  console.log('No launcher executable found in:', targetPath);
   return null;
 }
 
@@ -230,6 +236,13 @@ function extractZip(zipPath, destPath) {
  */
 function createDesktopShortcut(targetPath) {
   return new Promise((resolve) => {
+    // Check if directory exists
+    if (!fs.existsSync(targetPath)) {
+      console.log('Cannot create shortcut: installation directory does not exist yet');
+      resolve();
+      return;
+    }
+    
     const launcherPath = findLauncherExecutable(targetPath);
     
     if (!launcherPath) {
@@ -273,6 +286,13 @@ function createDesktopShortcut(targetPath) {
  * Launch the main launcher with admin rights prompt
  */
 function launchMainLauncher(targetPath) {
+  // Check if directory exists
+  if (!fs.existsSync(targetPath)) {
+    sendStatus('error', 'Папка установки не найдена. Проверьте установку.');
+    console.error('Installation directory does not exist:', targetPath);
+    return;
+  }
+  
   const launcherPath = findLauncherExecutable(targetPath);
   
   if (!launcherPath) {
@@ -311,6 +331,12 @@ function launchMainLauncher(targetPath) {
  * Check if launcher is already installed
  */
 function checkExistingInstallation(targetPath) {
+  // If directory doesn't exist, nothing is installed
+  if (!fs.existsSync(targetPath)) {
+    console.log('Installation directory does not exist - fresh install');
+    return { exists: false, version: null, launcherPath: null };
+  }
+  
   const launcherPath = findLauncherExecutable(targetPath);
   const versionPath = path.join(targetPath, CONFIG.versionFile);
   
