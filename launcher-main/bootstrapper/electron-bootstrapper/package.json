@@ -35,6 +35,8 @@
         }
       ],
       "icon": "assets/icon.ico",
+      "requestedExecutionLevel": "requireAdministrator",
+      "signAndEditExecutable": false,
       "artifactName": "RobBob-Bootstrapper.${ext}"
     },
     "portable": {
